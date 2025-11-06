@@ -20,7 +20,7 @@ outfile="results/${prog}_results.csv"
 echo "pi_est,points,procs,time" > "$outfile"
 
 
-for p in 1 2 4 8 16; do
+for p in 1 2 4 6; do
 
   points_per_proc=$(( total_points / p ))
   echo "Running $prog with $p processes (${points_per_proc} points per process)"
