@@ -25,50 +25,40 @@ int main(int argc,char **argv){
     int my_row = rank / q;
     int my_col = rank % q;
 
-    // create 2D cartesian communicator
     int dims[2] = {q, q};
-    int periods[2] = {1,1}; // circular shifts
+    int periods[2] = {1,1};
     MPI_Comm grid;
     MPI_Cart_create(MPI_COMM_WORLD, 2, dims, periods, 1, &grid);
 
     int coords[2];
     MPI_Cart_coords(grid, rank, 2, coords);
     int up, down, left, right;
-    MPI_Cart_shift(grid, 0, 1, &up, &down); // shift rows
-    MPI_Cart_shift(grid, 1, 1, &left, &right); // shift cols
-
-    // allocate local blocks (block x block)
+    MPI_Cart_shift(grid, 0, 1, &up, &down);
+    MPI_Cart_shift(grid, 1, 1, &left, &right);
     double *A = malloc(sizeof(double) * block * block);
     double *B = malloc(sizeof(double) * block * block);
     double *C = calloc(block * block, sizeof(double));
-    // initialize A and B deterministically (global indices)
     int row0 = my_row * block;
     int col0 = my_col * block;
     for(int i=0;i<block;i++){
         for(int j=0;j<block;j++){
             int gi = row0 + i;
             int gj = col0 + j;
-            A[i*block + j] = (double)(gi+1) + 0.1*(gj+1); // sample
-            B[i*block + j] = (double)(gi+1) - 0.2*(gj+1); // sample
-        }
+            A[i*block + j] = (double)(gi+1) + 0.1*(gj+1);
+            B[i*block + j] = (double)(gi+1) - 0.2*(gj+1);
     }
 
     MPI_Barrier(MPI_COMM_WORLD);
     double t0 = MPI_Wtime();
 
-    // initial skew: shift A left by my_row, shift B up by my_col
-    // shift A left by my_row
     for(int s=0;s<my_row;s++){
         MPI_Sendrecv_replace(A, block*block, MPI_DOUBLE, left, 0, right, 0, grid, MPI_STATUS_IGNORE);
     }
-    // shift B up by my_col
     for(int s=0;s<my_col;s++){
         MPI_Sendrecv_replace(B, block*block, MPI_DOUBLE, up, 0, down, 0, grid, MPI_STATUS_IGNORE);
     }
 
-    // main loop: q steps
     for(int step=0; step<q; step++){
-        // local multiply C += A * B (block multiplication)
         for(int i=0;i<block;i++){
             for(int k=0;k<block;k++){
                 double a = A[i*block + k];
@@ -77,7 +67,6 @@ int main(int argc,char **argv){
                 }
             }
         }
-        // rotate A left by 1, B up by 1
         MPI_Sendrecv_replace(A, block*block, MPI_DOUBLE, left, 0, right, 0, grid, MPI_STATUS_IGNORE);
         MPI_Sendrecv_replace(B, block*block, MPI_DOUBLE, up, 0, down, 0, grid, MPI_STATUS_IGNORE);
     }

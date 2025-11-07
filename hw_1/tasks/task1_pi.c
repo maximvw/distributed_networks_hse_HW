@@ -17,7 +17,6 @@ int main(int argc, char **argv) {
 
     long long local_n = atoll(argv[1]);
     unsigned int seed = (argc>=3) ? (unsigned int)atoi(argv[2]) : (unsigned int)(time(NULL) ^ (rank*7919));
-    // use rand_r
     long long local_hits = 0;
     double t0 = MPI_Wtime();
 
