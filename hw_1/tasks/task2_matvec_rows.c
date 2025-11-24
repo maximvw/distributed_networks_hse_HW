@@ -19,12 +19,10 @@ int main(int argc, char **argv){
     int my_first = rank * rows_per + (rank < rem ? rank : rem);
     int my_rows = rows_per + (rank < rem ? 1 : 0);
 
-    // allocate local A block (my_rows x N) and x and local y
     double *A = malloc(sizeof(double) * my_rows * N);
     double *x = malloc(sizeof(double) * N);
     double *y_local = malloc(sizeof(double) * my_rows);
 
-    // init matrix and vector deterministically
     for(int i=0;i<my_rows;i++){
         int gi = my_first + i;
         for(int j=0;j<N;j++){
@@ -36,10 +34,8 @@ int main(int argc, char **argv){
     MPI_Barrier(MPI_COMM_WORLD);
     double t0 = MPI_Wtime();
 
-    // Because x is needed by all, broadcast x from rank 0 (or allfill)
     MPI_Bcast(x, N, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
-    // compute local y = A_local * x
     for(int i=0;i<my_rows;i++){
         double sum = 0.0;
         for(int j=0;j<N;j++) sum += A[i*N + j] * x[j];
@@ -49,7 +45,6 @@ int main(int argc, char **argv){
     MPI_Barrier(MPI_COMM_WORLD);
     double t1 = MPI_Wtime();
 
-    // Optionally gather results to rank 0 (not required, but for verification)
     if(rank==0){
         double *y = malloc(sizeof(double) * N);
         int *recvcounts = malloc(sizeof(int) * size);

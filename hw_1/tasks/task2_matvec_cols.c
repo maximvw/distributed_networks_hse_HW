@@ -13,34 +13,29 @@ int main(int argc,char **argv){
     int my_first = rank * cols_per + (rank < rem ? rank : rem);
     int my_cols = cols_per + (rank < rem ? 1 : 0);
 
-    // allocate local A (N x my_cols) and local x segment
     double *A = malloc(sizeof(double) * N * my_cols);
     double *x_local = malloc(sizeof(double) * my_cols);
     double *y_local = malloc(sizeof(double) * N);
     double *y = malloc(sizeof(double) * N);
 
-    // init A and x_local deterministically
     for(int j=0;j<my_cols;j++){
         int gj = my_first + j;
-        x_local[j] = 1.0; // global x[gj] = 1
+        x_local[j] = 1.0;
         for(int i=0;i<N;i++){
             A[i*my_cols + j] = (double)(i+1) + 0.1*(gj+1);
         }
     }
-    // Initialize y_local
     for(int i=0;i<N;i++) y_local[i] = 0.0;
 
     MPI_Barrier(MPI_COMM_WORLD);
     double t0 = MPI_Wtime();
 
-    // compute partial y_local = sum over local columns A[:,j]*x[j]
     for(int j=0;j<my_cols;j++){
         for(int i=0;i<N;i++){
             y_local[i] += A[i*my_cols + j] * x_local[j];
         }
     }
 
-    // reduce partial y to get full y on rank 0
     MPI_Reduce(y_local, y, N, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
 
     MPI_Barrier(MPI_COMM_WORLD);

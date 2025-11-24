@@ -1,12 +1,20 @@
-CC=mpicc
-CFLAGS=-O2 -std=c11
-LIBS=-lm
-TARGETS=task1_pi task2_matvec_rows task2_matvec_cols task2_matvec_block task3_cannon task4_dirichlet
+CC       = mpicc
+CFLAGS   = -O2 -std=c11 -Wall
+LIBS     = -lm
 
-O_DIR=o_files
-RESULTS_DIR=results
+TASK_DIR   = tasks
+TEST_DIR   = tests
+O_DIR      = o_files
+RESULTS_DIR= results
+TEST_OUT   = build_tests
 
-all: $(O_DIR) $(RESULTS_DIR) $(TARGETS)
+TASKS = task1_pi task2_matvec_rows task2_matvec_cols \
+        task2_matvec_block task3_cannon task4_dirichlet
+
+TESTS = test_task1_pi test_task2_matvec_rows test_task2_matvec_cols \
+        test_task2_matvec_block test_task3_cannon test_task4_dirichlet
+
+all: $(O_DIR) $(RESULTS_DIR) $(addprefix $(O_DIR)/, $(TASKS))
 
 $(O_DIR):
 	mkdir -p $(O_DIR)
@@ -14,25 +22,51 @@ $(O_DIR):
 $(RESULTS_DIR):
 	mkdir -p $(RESULTS_DIR)
 
-task1_pi: tasks/task1_pi.c
-	$(CC) $(CFLAGS) -o $(O_DIR)/$@ $< $(LIBS)
+$(O_DIR)/%: $(TASK_DIR)/%.c
+	$(CC) $(CFLAGS) -o $@ $< $(LIBS)
 
-task2_matvec_rows: tasks/task2_matvec_rows.c
-	$(CC) $(CFLAGS) -o $(O_DIR)/$@ $< $(LIBS)
+tests: $(TEST_OUT) $(addprefix $(TEST_OUT)/, $(TESTS))
+	@echo "--------------------------------------"
+	@echo "Running all tests"
+	@echo "--------------------------------------"
+	@for t in $(TESTS); do \
+		echo "→ Running $$t"; \
+		mpirun --oversubscribe -np 4 $(TEST_OUT)/$$t 8 200 || exit 1; \
+	done
+	@echo "All tests completed successfully."
 
-task2_matvec_cols: tasks/task2_matvec_cols.c
-	$(CC) $(CFLAGS) -o $(O_DIR)/$@ $< $(LIBS)
+$(TEST_OUT):
+	mkdir -p $(TEST_OUT)
 
-task2_matvec_block: tasks/task2_matvec_block.c
-	$(CC) $(CFLAGS) -o $(O_DIR)/$@ $< $(LIBS)
+$(TEST_OUT)/%: $(TEST_DIR)/%.c
+	$(CC) $(CFLAGS) -o $@ $< $(LIBS)
 
-task3_cannon: tasks/task3_cannon.c
-	$(CC) $(CFLAGS) -o $(O_DIR)/$@ $< $(LIBS)
+test1:
+	$(CC) $(CFLAGS) $(TEST_DIR)/test_task1_pi.c -o $(TEST_OUT)/test_task1_pi $(LIBS)
+	mpirun --oversubscribe -np 4 $(TEST_OUT)/test_task1_pi 10000000
 
-task4_dirichlet: tasks/task4_dirichlet.c
-	$(CC) $(CFLAGS) -o $(O_DIR)/$@ $< $(LIBS)
+test2r:
+	$(CC) $(CFLAGS) $(TEST_DIR)/test_task2_matvec_rows.c -o $(TEST_OUT)/test_task2_matvec_rows $(LIBS)
+	mpirun --oversubscribe -np 4 $(TEST_OUT)/test_task2_matvec_rows 8
+
+test2c:
+	$(CC) $(CFLAGS) $(TEST_DIR)/test_task2_matvec_cols.c -o $(TEST_OUT)/test_task2_matvec_cols $(LIBS)
+	mpirun --oversubscribe -np 4 $(TEST_OUT)/test_task2_matvec_cols 8
+
+test2b:
+	$(CC) $(CFLAGS) $(TEST_DIR)/test_task2_matvec_block.c -o $(TEST_OUT)/test_task2_matvec_block $(LIBS)
+	mpirun --oversubscribe -np 6 $(TEST_OUT)/test_task2_matvec_block 12
+
+test3:
+	$(CC) $(CFLAGS) $(TEST_DIR)/test_task3_cannon.c -o $(TEST_OUT)/test_task3_cannon $(LIBS)
+	mpirun --oversubscribe -np 4 $(TEST_OUT)/test_task3_cannon 4
+
+test4:
+	$(CC) $(CFLAGS) $(TEST_DIR)/test_task4_dirichlet.c -o $(TEST_OUT)/test_task4_dirichlet $(LIBS)
+	mpirun --oversubscribe -np 6 $(TEST_OUT)/test_task4_dirichlet 100 200
 
 clean:
-	rm -f $(O_DIR)/* $(RESULTS_DIR)/*.csv
+	rm -rf $(O_DIR) $(RESULTS_DIR) $(TEST_OUT)
+	@echo "Clean done."
 
-.PHONY: all clean
+.PHONY: all clean tests test1 test2r test2c test2b test3 test4
