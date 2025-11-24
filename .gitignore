@@ -1,3 +1,5 @@
 hw_1/o_files/*
 hw_1/distributed_venv
 hw_1/build_tests/*
+hw_1/graphics/*
+hw_1/results/*

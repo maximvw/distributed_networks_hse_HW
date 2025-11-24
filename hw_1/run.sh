@@ -23,11 +23,11 @@ esac
 
 echo "$header" > "$outfile"
 
-# ---------- Кол-во процессов ----------
-if [[ "$prog" == "task2_matvec_block" || "$prog" == "task3_cannon" || "$prog" == "task4_dirichlet" ]]; then
-  procs=(1 4)
+
+if [[ "$prog" == "task3_cannon" || "$prog" == "temp" ]]; then
+  procs=(1 4 9)
 else
-  procs=(1 2 4 6)
+  procs=(1 2 4 6 8)
 fi
 
 
