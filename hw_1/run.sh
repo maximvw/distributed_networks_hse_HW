@@ -17,7 +17,7 @@ mkdir -p results o_files
 
 outfile="results/${prog}_results.csv"
 
-# ---------- Заголовки ----------
+
 case "$prog" in
   task1_pi)          header="pi_est,points,procs,time" ;;
   task2_matvec_rows) header="N,procs,time" ;;
@@ -30,15 +30,15 @@ esac
 
 echo "$header" > "$outfile"
 
-# ---------- Кол-во процессов ----------
+
 if [[ "$prog" == "task2_matvec_block" || "$prog" == "task3_cannon" || "$prog" == "task4_dirichlet" ]]; then
-  procs=(1 4)
+  procs=(1 4 9)
 else
-  procs=(1 2 4 6)
+  procs=(1 2 4 6 8 10)
 fi
 
-# ---------- Запуск ----------
-echo "▶ Running $prog ..."
+
+echo "Running $prog ..."
 for p in "${procs[@]}"; do
   if [[ "$prog" == "task1_pi" ]]; then
     total_points=${1:-10000000}
