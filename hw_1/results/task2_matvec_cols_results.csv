@@ -1,5 +1,6 @@
 N,procs,time
-1000,1,0.000675
-1000,2,0.000354
-1000,4,0.000219
-1000,6,0.000326
+OK, Size=30000, Procs=1, Time=0.455915
+OK, Size=30000, Procs=2, Time=0.232770
+OK, Size=30000, Procs=4, Time=0.132459
+OK, Size=30000, Procs=6, Time=0.103225
+OK, Size=30000, Procs=8, Time=0.087153
