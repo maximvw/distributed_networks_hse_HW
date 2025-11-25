@@ -134,9 +134,9 @@ int main(int argc, char** argv) {
     // 8. Вывод (парсится автотестом)
     if (rank == 0) {
         if (total_errors == 0) {
-            printf("RESULT: OK | N=%d | Procs=%d | Time=%.6f\n", N, size, end_time - start_time);
+            printf("OK,%d,%d,%.6f\n", N, size, end_time - start_time);
         } else {
-            printf("RESULT: FAIL | N=%d | Procs=%d | Errors=%d\n", N, size, total_errors);
+            printf("FAIL,%d,%d,%d\n", N, size, total_errors);
         }
     }
 

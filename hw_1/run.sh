@@ -13,10 +13,10 @@ outfile="results/${prog}_results.csv"
 
 case "$prog" in
   task1_pi)          header="pi_est,points,procs,time" ;;
-  task2_matvec_rows) header="N,procs,time" ;;
-  task2_matvec_cols) header="N,procs,time" ;;
-  task2_matvec_block)header="N,procs,time,px,py" ;;
-  task3_cannon)      header="N,procs,time" ;;
+  task2_matvec_rows) header="status,N,procs,time" ;;
+  task2_matvec_cols) header="status,N,procs,time" ;;
+  task2_matvec_block)header="status,N,procs,time,px,py" ;;
+  task3_cannon)      header="N,procs,time,status" ;;
   task4_dirichlet)   header="N,procs,px,py,itmax,time" ;;
   *) echo "Unknown program name: $prog"; exit 1 ;;
 esac

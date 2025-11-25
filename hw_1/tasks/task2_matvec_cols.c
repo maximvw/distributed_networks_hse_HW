@@ -96,9 +96,9 @@ int main(int argc, char **argv) {
         }
 
         if (errors == 0) {
-            printf("OK, Size=%d, Procs=%d, Time=%.6f\n", N, size, t1 - t0);
+            printf("OK,%d,%d,%.6f\n", N, size, t1 - t0);
         } else {
-            printf("FAIL, Size=%d, Procs=%d, Errors=%d\n", N, size, errors);
+            printf("FAIL,%d,%d,%d\n", N, size, errors);
         }
     }
 

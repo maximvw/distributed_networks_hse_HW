@@ -30,4 +30,4 @@ for file_name in files:
     plt.title('efficiency = speedup / procs vs procs')
     plt.savefig(f'graphics/{file_name}_efficiency_vs_procs.png')
 
-    #plt.show()
+    plt.show()
