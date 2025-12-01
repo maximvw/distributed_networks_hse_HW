@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import os
 
 # Путь к файлу
-csv_path = 'results/mandelbrot.csv'
+csv_path = 'results/task_results/mandelbrot.csv'
 
 def plot_mandelbrot():
     # Проверка наличия файла

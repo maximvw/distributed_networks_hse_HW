@@ -8,7 +8,7 @@
 #define MAX_ITER 2000
 
 // Границы области на комплексной плоскости, где мы ищем множество
-// Обычно множество Мандельброта лежит в пределах x[-2, 1], y[-1, 1]
+
 const double MIN_X = -3.0;
 const double MAX_X = 3.0;
 const double MIN_Y = -3.0;
@@ -45,7 +45,7 @@ int main(int argc, char *argv[]) {
     printf("Threads: %d\n", nthreads);
 
     // Открываем файл для записи результатов
-    FILE *fp = fopen("results/mandelbrot.csv", "w");
+    FILE *fp = fopen("results/task_results/mandelbrot.csv", "w");
     if (!fp) {
         perror("Error opening file");
         return 1;
