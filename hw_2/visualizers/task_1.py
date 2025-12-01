@@ -35,7 +35,7 @@ def plot_mandelbrot():
 
         # Настройки осей
         plt.axis('equal')  # Чтобы пропорции не искажались
-        plt.title('Множество Мандельброта (Результат OpenMP)')
+        plt.title('Множество Мандельброта')
         plt.xlabel('Re (x)')
         plt.ylabel('Im (y)')
         
