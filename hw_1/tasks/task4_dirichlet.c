@@ -27,8 +27,8 @@ int main(int argc, char **argv) {
     // 1. Топология
     int dims[2] = {0, 0};
     MPI_Dims_create(size, 2, dims);
-    int px = dims[0]; // Кол-во процессов по строкам (Y)
-    int py = dims[1]; // Кол-во процессов по столбцам (X)
+    int px = dims[0];
+    int py = dims[1]; 
     
     int periods[2] = {0, 0};
     MPI_Comm grid;
@@ -59,10 +59,14 @@ int main(int argc, char **argv) {
 
     // !!! ВАЖНО: Вычисляем глобальное смещение для координат !!!
     int offset_row = 0;
-    for (int k = 0; k < my_row; k++) offset_row += base_rows + (k < N % px ? 1 : 0);
+    for (int k = 0; k < my_row; k++) {
+        offset_row += base_rows + (k < N % px ? 1 : 0);
+    }
     
     int offset_col = 0;
-    for (int k = 0; k < my_col; k++) offset_col += base_cols + (k < N % py ? 1 : 0);
+    for (int k = 0; k < my_col; k++){ 
+        offset_col += base_cols + (k < N % py ? 1 : 0);
+    }
 
     // u[строка][столбец] -> u[local_rows+2][local_cols+2]
     double *u = calloc((local_rows + 2) * (local_cols + 2), sizeof(double));
@@ -73,20 +77,29 @@ int main(int argc, char **argv) {
     // Инициализация границ
     // Верхняя граница глобальной области
     if (up == MPI_PROC_NULL) {
-        for (int j = 0; j <= local_cols + 1; j++) u[0 * (local_cols + 2) + j] = u_boundary;
+        for (int j = 0; j <= local_cols + 1; j++){
+            u[0 * (local_cols + 2) + j] = u_boundary;
+        }
     }
     // Нижняя граница глобальной области
     if (down == MPI_PROC_NULL) {
-        for (int j = 0; j <= local_cols + 1; j++) u[(local_rows + 1) * (local_cols + 2) + j] = u_boundary;
+        for (int j = 0; j <= local_cols + 1; j++){
+            u[(local_rows + 1) * (local_cols + 2) + j] = u_boundary;
+        }
     }
     // Левая граница
     if (left == MPI_PROC_NULL) {
-        for (int i = 0; i <= local_rows + 1; i++) u[i * (local_cols + 2) + 0] = u_boundary;
+        for (int i = 0; i <= local_rows + 1; i++){
+            u[i * (local_cols + 2) + 0] = u_boundary;
+        }
     }
     // Правая граница
     if (right == MPI_PROC_NULL) {
-        for (int i = 0; i <= local_rows + 1; i++) u[i * (local_cols + 2) + (local_cols + 1)] = u_boundary;
+        for (int i = 0; i <= local_rows + 1; i++){
+            u[i * (local_cols + 2) + (local_cols + 1)] = u_boundary;
+        }
     }
+
 
     // Буферы
     double *send_row_first = malloc(local_cols * sizeof(double));
@@ -108,12 +121,16 @@ int main(int argc, char **argv) {
         // --- ФАЗА 1: Получение фронта волны (данные итерации k+1 от соседей сверху и слева) ---
         if (up != MPI_PROC_NULL) {
             MPI_Recv(recv_row_up, local_cols, MPI_DOUBLE, up, 0, grid, MPI_STATUS_IGNORE);
-            for (int j = 1; j <= local_cols; j++) u[0 * (local_cols + 2) + j] = recv_row_up[j-1];
+            for (int j = 1; j <= local_cols; j++){
+                u[0 * (local_cols + 2) + j] = recv_row_up[j-1];
+            }
         }
         
         if (left != MPI_PROC_NULL) {
             MPI_Recv(recv_col_left, local_rows, MPI_DOUBLE, left, 1, grid, MPI_STATUS_IGNORE);
-            for (int i = 1; i <= local_rows; i++) u[i * (local_cols + 2) + 0] = recv_col_left[i-1];
+            for (int i = 1; i <= local_rows; i++){
+                u[i * (local_cols + 2) + 0] = recv_col_left[i-1];
+            }
         }
 
         // --- ФАЗА 2: Вычисления ---
