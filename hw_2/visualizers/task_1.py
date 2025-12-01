@@ -40,7 +40,7 @@ def plot_mandelbrot():
         plt.ylabel('Im (y)')
         
         # Сохранение результата в файл картинки
-        output_img = 'results/mandelbrot_plot.png'
+        output_img = 'results/graphics/mandelbrot_plot.png'
         plt.savefig(output_img)
         print(f"График сохранен в файл: {output_img}")
         
