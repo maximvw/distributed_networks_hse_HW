@@ -1,10 +1,10 @@
 #!/bin/bash
 
 # Настройки
-PROGRAM="./o_files/task1"
+PROGRAM="./o_files/task_1"
 POINTS=10000000  # 10 миллионов точек (достаточно много, чтобы заметить разницу)
 RUNS=7           # Количество запусков для усреднения
-OUTPUT_FILE="results/benchmark_results.txt"
+OUTPUT_FILE="results/benchmarks/benchmark_1.txt"
 
 # Проверка наличия программы
 if [ ! -f "$PROGRAM" ]; then
