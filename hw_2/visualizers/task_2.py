@@ -95,6 +95,7 @@ def plot_trajectories(csv_filename):
     )
 
     print("Генерация графика...")
+    fig.write_html("results/graphics/trajectory.html")
     fig.show()
 
 if __name__ == "__main__":
