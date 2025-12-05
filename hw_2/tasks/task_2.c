@@ -5,9 +5,7 @@
 
 // Гравитационная постоянная
 #define G 6.67430e-11
-// Шаг по времени (Delta t). 
-// В лабораторных работах его либо подбирают, либо задают жестко.
-// Для точности возьмем 0.01 сек.
+// Шаг по времени
 #define DT 0.01
 
 typedef struct {
@@ -18,15 +16,18 @@ typedef struct {
 } Particle;
 
 int main(int argc, char *argv[]) {
-    // Проверка аргументов командной строки
-    // Формат: ./program tend filename
-    if (argc != 3) {
-        printf("Usage: %s <tend> <filename>\n", argv[0]);
+    // Формат: ./program nthreads tend filename
+    if (argc != 4) {
+        printf("Usage: %s <nthreads> <tend> <filename>\n", argv[0]);
         return 1;
     }
 
-    double tend = atof(argv[1]);
-    char *filename = argv[2];
+    int nthreads = atoi(argv[1]);
+    double tend = atof(argv[2]);
+    char *filename = argv[3];
+
+    // Установка количества потоков
+    omp_set_num_threads(nthreads);
 
     FILE *fp = fopen(filename, "r");
     if (!fp) {
@@ -41,7 +42,6 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    // Выделение памяти под массив частиц
     Particle *particles = (Particle *)malloc(n * sizeof(Particle));
     if (!particles) {
         fprintf(stderr, "Memory allocation error\n");
@@ -49,18 +49,16 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    // Чтение данных из файла
-    // В PDF написано "файл с массами", но в формате строки описано 6 чисел.
-    // Обычно в N-body задачах масса необходима. 
-    // Предполагаем формат: m x y z vx vy vz (7 чисел), так как без массы физика не работает.
+    // Чтение данных.
     for (int i = 0; i < n; i++) {
-        // Если в вашем файле 6 чисел (нет массы), измените fscanf и задайте p.m = 1.0 вручную.
-        if (fscanf(fp, "%lf %lf %lf %lf %lf %lf %lf", 
+        int read_count = fscanf(fp, "%lf %lf %lf %lf %lf %lf %lf", 
             &particles[i].m, 
             &particles[i].x, &particles[i].y, &particles[i].z, 
-            &particles[i].vx, &particles[i].vy, &particles[i].vz) != 7) {
+            &particles[i].vx, &particles[i].vy, &particles[i].vz);
             
-            fprintf(stderr, "Error reading particle data at index %d. Expected 7 values (m x y z vx vy vz).\n", i);
+        if (read_count != 7) {
+            fprintf(stderr, "Error reading particle %d. Expected 7 values (m x y z vx vy vz).\n", i);
+            fprintf(stderr, "If your file has only 6 values per line, the PDF description implies mass is missing/fixed.\n");
             free(particles);
             fclose(fp);
             return 1;
@@ -68,20 +66,21 @@ int main(int argc, char *argv[]) {
     }
     fclose(fp);
 
-    // Основной цикл по времени
     int steps = (int)(tend / DT);
     
     // Вывод начального состояния (t=0)
+    // Формат CSV: t, x1, y1, x2, y2... (в PDF только x, y, но код считает z, оставим z для точности)
     printf("0.000000");
     for (int i = 0; i < n; i++) {
         printf(",%f,%f,%f", particles[i].x, particles[i].y, particles[i].z);
     }
     printf("\n");
 
+    // Основной цикл
     for (int s = 1; s <= steps; s++) {
         double current_time = s * DT;
 
-        // 1. Обнуление сил перед шагом
+        // 1. Обнуление сил
         #pragma omp parallel for
         for (int i = 0; i < n; i++) {
             particles[i].fx = 0.0;
@@ -89,11 +88,8 @@ int main(int argc, char *argv[]) {
             particles[i].fz = 0.0;
         }
 
-        // 2. Расчет сил взаимодействия (Закон всемирного тяготения)
-        // Используем 3-й закон Ньютона: F_ji = -F_ij
-        // Внешний цикл распараллеливаем. Так как мы пишем в particles[j] (чужой поток),
-        // нужны атомарные операции для корректности.
-        
+        // 2. Расчет сил (с учетом 3-го закона Ньютона)
+        // schedule(dynamic) помогает, так как нагрузка во внутреннем цикле уменьшается с ростом i
         #pragma omp parallel for schedule(dynamic)
         for (int i = 0; i < n; i++) {
             for (int j = i + 1; j < n; j++) {
@@ -102,21 +98,17 @@ int main(int argc, char *argv[]) {
                 double dz = particles[j].z - particles[i].z;
                 
                 double dist_sq = dx*dx + dy*dy + dz*dz;
-                // Добавляем малую величину eps, чтобы избежать деления на 0 при столкновении
+                // Защита от деления на ноль + softening
                 double dist = sqrt(dist_sq + 1e-10); 
                 double dist_cube = dist * dist * dist;
-                double f_mag;
-
-                // if (dist == 0){
-                    // f_mag = 0;
-                // } else {
-                f_mag = G * particles[i].m * particles[j].m / dist_cube;
-                // }
+                
+                double f_mag = G * particles[i].m * particles[j].m / dist_cube;
+                
                 double fx = f_mag * dx;
                 double fy = f_mag * dy;
                 double fz = f_mag * dz;
 
-                // Сила действует на i в сторону j (вектор r_j - r_i)
+                // Обновляем i (нужен atomic, т.к. другие потоки могут обновлять i как j)
                 #pragma omp atomic
                 particles[i].fx += fx;
                 #pragma omp atomic
@@ -124,7 +116,7 @@ int main(int argc, char *argv[]) {
                 #pragma omp atomic
                 particles[i].fz += fz;
 
-                // Противодействующая сила на j (3-й закон Ньютона)
+                // Обновляем j (нужен atomic, т.к. j - чужой индекс)
                 #pragma omp atomic
                 particles[j].fx -= fx;
                 #pragma omp atomic
@@ -134,25 +126,25 @@ int main(int argc, char *argv[]) {
             }
         }
 
-        // 3. Метод Эйлера: обновление скорости и координаты
+        // 3. Интеграция по Эйлеру
         #pragma omp parallel for
         for (int i = 0; i < n; i++) {
             double ax = particles[i].fx / particles[i].m;
             double ay = particles[i].fy / particles[i].m;
             double az = particles[i].fz / particles[i].m;
 
-            // Обновляем координаты: x(n) = x(n-1) + v(n-1)*dt
+            // Сначала координаты по старой скорости (формула 8 в PDF)
             particles[i].x += particles[i].vx * DT;
             particles[i].y += particles[i].vy * DT;
             particles[i].z += particles[i].vz * DT;
 
-            // Обновляем скорости: v(n) = v(n-1) + a(n-1)*dt
+            // Затем скорость
             particles[i].vx += ax * DT;
             particles[i].vy += ay * DT;
             particles[i].vz += az * DT;
         }
 
-        // 4. Вывод текущего состояния в CSV
+        // 4. Вывод
         printf("%f", current_time);
         for (int i = 0; i < n; i++) {
             printf(",%f,%f,%f", particles[i].x, particles[i].y, particles[i].z);
