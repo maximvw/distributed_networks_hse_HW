@@ -9,6 +9,8 @@ def plot_trajectories(csv_filename):
         print(f"Ошибка: Файл '{csv_filename}' не найден.")
         return
 
+    filename = ".".join(csv_filename.split('/')[-1].split('.')[:-1])
+
     print(f"Загрузка данных из {csv_filename}...")
     
     # Чтение CSV файла. 
@@ -95,7 +97,7 @@ def plot_trajectories(csv_filename):
     )
 
     print("Генерация графика...")
-    fig.write_html("results/graphics/trajectory.html")
+    fig.write_html(f"results/graphics/{filename}.html")
     fig.show()
 
 if __name__ == "__main__":
