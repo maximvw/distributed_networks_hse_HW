@@ -21,6 +21,9 @@
     sun_and_earth: uv run visualizers/task_2.py ./results/task_results/sun_and_earth.csv
     star_and_2planets: uv run visualizers/task_2.py ./results/task_results/star_and_2planets.csv
 
+4) benchmarking: ./benchmark_scripts/benchmark_task_2.sh
+
+
 ### run task_2_cuda:
 1) compile: nvcc -arch=sm_75 -O3 -o o_files/task_2_cuda tasks/task_2_cuda.cu
 

@@ -2,8 +2,8 @@
 
 # Настройки
 PROGRAM="./o_files/task_2"
-POINTS=10000000  # 10 миллионов точек (достаточно много, чтобы заметить разницу)
-RUNS=10          # Количество запусков для усреднения
+TEND=5.0
+RUNS=1        # Количество запусков для усреднения
 OUTPUT_FILE="results/benchmarks/benchmark_2.txt"
 
 # Проверка наличия программы
@@ -35,7 +35,7 @@ fi
 echo "CPU: $MODEL" | tee -a $OUTPUT_FILE
 echo "Физических ядер: $CORES" | tee -a $OUTPUT_FILE
 echo "Логических потоков: $LOGICAL" | tee -a $OUTPUT_FILE
-echo "Количество точек для теста: $POINTS" | tee -a $OUTPUT_FILE
+echo "T_end теста: $TEND" | tee -a $OUTPUT_FILE
 echo "Количество запусков для усреднения: $RUNS" | tee -a $OUTPUT_FILE
 echo "--------------------------------------" >> $OUTPUT_FILE
 
@@ -47,19 +47,29 @@ echo "-----------|-----------------|-----------" | tee -a $OUTPUT_FILE
 TIME_1_THREAD=0
 
 # 2. Цикл замеров
-for threads in 1 2 4 8 12 16; do
+for threads in 1 2 4 6 8 10; do
     total_time=0
     
     # Запускаем N раз
     for (( i=1; i<=RUNS; i++ )); do
-        # Запуск программы и перехват вывода. 
-        # Мы ищем строку "Time taken: X.XXXX" и берем 3-е слово (число)
-        output=$($PROGRAM $threads $POINTS)
+        # ОТПРАВЛЯЕМ ДАННЫЕ В /dev/null (чтобы не нагружать диск), 
+        # А ВРЕМЯ (stderr) ЗАХВАТЫВАЕМ В ПЕРЕМЕННУЮ ЧЕРЕЗ 2>&1
+        output=$($PROGRAM $threads $TEND data/part_2/atom_big.txt 2>&1 >/dev/null)
         
-        # Извлекаем время из вывода (парсинг строки Time taken: ...)
+        # Если вдруг нужно сохранять файл (но это замедлит тест), раскомментируйте строчку ниже, а верхнюю закомментируйте:
+        # output=$($PROGRAM $threads $TEND data/part_2/atom.txt 2>&1 1>./results/task_results/atom.csv)
+
+        # Извлекаем время
         run_time=$(echo "$output" | awk '/Time taken:/ {print $3}')
         
-        # Складываем время (используем awk для float арифметики)
+        # Проверка, что run_time не пустой (на случай ошибок)
+        if [ -z "$run_time" ]; then
+             echo "Ошибка: не удалось получить время выполнения. Проверьте вывод программы."
+             echo "Вывод программы: $output"
+             exit 1
+        fi
+
+        # Складываем время
         total_time=$(awk "BEGIN {print $total_time + $run_time}")
     done
 
@@ -76,7 +86,6 @@ for threads in 1 2 4 8 12 16; do
 
     # Красивый вывод в консоль и файл
     printf "%-10d | %-15.4f | %-10s\n" "$threads" "$avg_time" "$speedup" | tee -a $OUTPUT_FILE
-
 done
 
 echo "" >> $OUTPUT_FILE

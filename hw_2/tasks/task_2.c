@@ -66,6 +66,8 @@ int main(int argc, char *argv[]) {
     }
     fclose(fp);
 
+    double start_time = omp_get_wtime();
+
     int steps = (int)(tend / DT);
     
     // Вывод начального состояния (t=0)
@@ -150,6 +152,8 @@ int main(int argc, char *argv[]) {
         }
         printf("\n");
     }
+    double end_time = omp_get_wtime();
+    fprintf(stderr, "Time taken: %.4f seconds\n", end_time - start_time);
 
     free(particles);
     return 0;
