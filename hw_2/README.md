@@ -6,13 +6,13 @@
 
 ### run task_2 openmp:
 1) compile: gcc-15 -fopenmp -o o_files/task_2 tasks/task_2.c -lm
-2) run: 
-    atom: ./o_files/task_2 10.0 data/part_2/atom.txt > ./results/task_results/atom.csv
-    2stars: ./o_files/task_2 10.0 data/part_2/2stars.txt > ./results/task_results/2stars.csv
-    sputnik: ./o_files/task_2 10.0 data/part_2/sputnik.txt > ./results/task_results/sputnik.csv
-    sun_and_earth: ./o_files/task_2 10.0 data/part_2/sun_and_earth.txt > ./results/task_results/sun_and_earth.csv
-    star_and_2planets: ./o_files/task_2 10.0 data/part_2/star_and_2planets.txt > ./results/task_results/star_and_2planets.csv
 
+2) run: 
+    atom: ./o_files/task_2 4 10.0 data/part_2/atom.txt > ./results/task_results/atom.csv
+    2stars: ./o_files/task_2 4 10.0 data/part_2/2stars.txt > ./results/task_results/2stars.csv
+    sputnik: ./o_files/task_2 4 10.0 data/part_2/sputnik.txt > ./results/task_results/sputnik.csv
+    sun_and_earth: ./o_files/task_2 4 10.0 data/part_2/sun_and_earth.txt > ./results/task_results/sun_and_earth.csv
+    star_and_2planets: ./o_files/task_2 4 10.0 data/part_2/star_and_2planets.txt > ./results/task_results/star_and_2planets.csv
 
 3) visualize: 
     atom: uv run visualizers/task_2.py ./results/task_results/atom.csv
