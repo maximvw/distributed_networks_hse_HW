@@ -133,15 +133,14 @@ int main(int argc, char *argv[]) {
             double ay = particles[i].fy / particles[i].m;
             double az = particles[i].fz / particles[i].m;
 
-            // Сначала координаты по старой скорости (формула 8 в PDF)
+            particles[i].vx += ax * DT;
+            particles[i].vy += ay * DT;
+            particles[i].vz += az * DT;
+
             particles[i].x += particles[i].vx * DT;
             particles[i].y += particles[i].vy * DT;
             particles[i].z += particles[i].vz * DT;
 
-            // Затем скорость
-            particles[i].vx += ax * DT;
-            particles[i].vy += ay * DT;
-            particles[i].vz += az * DT;
         }
 
         // 4. Вывод
