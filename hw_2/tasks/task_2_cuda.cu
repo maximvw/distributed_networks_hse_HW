@@ -4,10 +4,10 @@
 #include <cuda_runtime.h>
 
 // Гравитационная постоянная
-#define G 6.67430e-11f
-// Шаг по времени (Delta t) - можно подобрать под задачу
-#define DT 0.01f
-// Количество потоков в блоке
+#define G 6.67430e-11
+// Шаг по времени
+#define DT 0.01
+// Размер блока CUDA (кол-во потоков в блоке)
 #define BLOCK_SIZE 256
 
 // Макрос для проверки ошибок CUDA
@@ -15,131 +15,142 @@
     do { \
         cudaError_t err = call; \
         if (err != cudaSuccess) { \
-            fprintf(stderr, "CUDA Error: %s at line %d\n", cudaGetErrorString(err), __LINE__); \
+            fprintf(stderr, "CUDA error at %s:%d: %s\n", __FILE__, __LINE__, \
+                    cudaGetErrorString(err)); \
             exit(1); \
         } \
     } while (0)
 
-// CUDA ядро для шага симуляции (Метод Эйлера)
-__global__ void nbody_step(
-    int n, 
-    const float *m, 
-    const float *x, const float *y, const float *z,
-    const float *vx, const float *vy, const float *vz,
-    float *new_x, float *new_y, float *new_z,
-    float *new_vx, float *new_vy, float *new_vz
-) {
+// Структура для удобного чтения на хосте (CPU)
+typedef struct {
+    double m;
+    double x, y, z;
+    double vx, vy, vz;
+} ParticleHost;
+
+// Ядро 1: Вычисление сил
+// Каждый поток i считает сумму сил, действующих на i-ю частицу со стороны всех j
+__global__ void compute_forces(int n, double *m, double *x, double *y, double *z, 
+                               double *fx, double *fy, double *fz) {
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    
+    if (i < n) {
+        double my_x = x[i];
+        double my_y = y[i];
+        double my_z = z[i];
+        double my_fx = 0.0;
+        double my_fy = 0.0;
+        double my_fz = 0.0;
+
+        // Проходим по всем остальным частицам
+        for (int j = 0; j < n; j++) {
+            if (i == j) continue;
+
+            double dx = x[j] - my_x;
+            double dy = y[j] - my_y;
+            double dz = z[j] - my_z;
+
+            double dist_sq = dx*dx + dy*dy + dz*dz;
+            // Softening parameter (как в исходном коде) для избежания деления на 0
+            double dist = sqrt(dist_sq + 1e-10);
+            double dist_cube = dist * dist * dist;
+
+            // F = G * m1 * m2 / r^3 * vec(r)
+            double f_mag = G * m[i] * m[j] / dist_cube;
+
+            my_fx += f_mag * dx;
+            my_fy += f_mag * dy;
+            my_fz += f_mag * dz;
+        }
+
+        fx[i] = my_fx;
+        fy[i] = my_fy;
+        fz[i] = my_fz;
+    }
+}
+
+// Ядро 2: Интеграция по Эйлеру
+__global__ void integrate(int n, double *m, double *x, double *y, double *z, 
+                          double *vx, double *vy, double *vz, 
+                          double *fx, double *fy, double *fz) {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
 
-    if (i >= n) return;
+    if (i < n) {
+        double ax = fx[i] / m[i];
+        double ay = fy[i] / m[i];
+        double az = fz[i] / m[i];
 
-    float fx = 0.0f;
-    float fy = 0.0f;
-    float fz = 0.0f;
-    
-    // Текущее положение тела i
-    float rx_i = x[i];
-    float ry_i = y[i];
-    float rz_i = z[i];
-    float mass_i = m[i];
+        vx[i] += ax * DT;
+        vy[i] += ay * DT;
+        vz[i] += az * DT;
 
-    // Вычисляем силы притяжения со стороны всех остальных тел
-    for (int j = 0; j < n; j++) {
-        if (i == j) continue;
-
-        float dx = x[j] - rx_i;
-        float dy = y[j] - ry_i;
-        float dz = z[j] - rz_i;
-        
-        // Квадрат расстояния + epsilon для избежания деления на 0 (softening)
-        float dist_sq = dx*dx + dy*dy + dz*dz + 1e-9f;
-        float dist = sqrtf(dist_sq);
-        float dist_cube = dist_sq * dist;
-
-        // Закон всемирного тяготения: F = G * m1 * m2 / r^3 * vec(r)
-        float f = (G * mass_i * m[j]) / dist_cube;
-
-        fx += f * dx;
-        fy += f * dy;
-        fz += f * dz;
+        x[i] += vx[i] * DT;
+        y[i] += vy[i] * DT;
+        z[i] += vz[i] * DT;
     }
-
-    // Метод Эйлера
-    // a = F / m
-    float ax = fx / mass_i;
-    float ay = fy / mass_i;
-    float az = fz / mass_i;
-
-    // v_new = v_old + a * dt
-    float nvx = vx[i] + ax * DT;
-    float nvy = vy[i] + ay * DT;
-    float nvz = vz[i] + az * DT;
-
-    // r_new = r_old + v_old * dt (согласно формуле (8) в PDF используется старая скорость v^{n-1})
-    float nx = rx_i + vx[i] * DT;
-    float ny = ry_i + vy[i] * DT;
-    float nz = rz_i + vz[i] * DT;
-
-    // Запись в буферы "следующего" шага
-    new_vx[i] = nvx;
-    new_vy[i] = nvy;
-    new_vz[i] = nvz;
-    new_x[i] = nx;
-    new_y[i] = ny;
-    new_z[i] = nz;
 }
 
 int main(int argc, char *argv[]) {
-    if (argc < 3) {
-        fprintf(stderr, "Usage: %s <t_end> <filename>\n", argv[0]);
+    // Формат аргументов оставим совместимым с оригиналом, 
+    // хотя nthreads для CUDA не играет роли (используем GPU грид).
+    if (argc != 4) {
+        printf("Usage: %s <nthreads_ignored> <tend> <filename>\n", argv[0]);
         return 1;
     }
 
-    float t_end = atof(argv[1]);
-    char *filename = argv[2];
+    // int nthreads = atoi(argv[1]); // Игнорируем в CUDA версии
+    double tend = atof(argv[2]);
+    char *filename = argv[3];
 
+    // 1. Чтение файла
     FILE *fp = fopen(filename, "r");
     if (!fp) {
-        perror("Failed to open file");
+        perror("Error opening file");
         return 1;
     }
 
     int n;
     if (fscanf(fp, "%d", &n) != 1) {
-        fprintf(stderr, "Error reading number of bodies\n");
+        fprintf(stderr, "Error reading number of particles\n");
+        fclose(fp);
         return 1;
     }
 
-    // Выделение памяти на хосте (CPU)
-    size_t bytes = n * sizeof(float);
-    float *h_m = (float*)malloc(bytes);
-    float *h_x = (float*)malloc(bytes);
-    float *h_y = (float*)malloc(bytes);
-    float *h_z = (float*)malloc(bytes);
-    float *h_vx = (float*)malloc(bytes);
-    float *h_vy = (float*)malloc(bytes);
-    float *h_vz = (float*)malloc(bytes);
+    // Выделяем память на хосте для чтения
+    ParticleHost *h_particles = (ParticleHost *)malloc(n * sizeof(ParticleHost));
+    
+    // Вспомогательные массивы на хосте для вывода (Structure of Arrays)
+    double *h_x = (double*)malloc(n * sizeof(double));
+    double *h_y = (double*)malloc(n * sizeof(double));
+    double *h_z = (double*)malloc(n * sizeof(double));
+    double *h_m = (double*)malloc(n * sizeof(double));
+    double *h_vx = (double*)malloc(n * sizeof(double));
+    double *h_vy = (double*)malloc(n * sizeof(double));
+    double *h_vz = (double*)malloc(n * sizeof(double));
 
-    // Чтение файла. Ожидаемый формат строки: m x y z vx vy vz
     for (int i = 0; i < n; i++) {
-        // Если в файле нет массы (только 6 чисел), замените строку ниже на:
-        // h_m[i] = 1.0f; fscanf(fp, "%f %f %f %f %f %f", ...
-        if (fscanf(fp, "%f %f %f %f %f %f %f", 
-            &h_m[i], 
-            &h_x[i], &h_y[i], &h_z[i], 
-            &h_vx[i], &h_vy[i], &h_vz[i]) != 7) {
+        // Читаем в структуру (как в исходном коде)
+        int read_count = fscanf(fp, "%lf %lf %lf %lf %lf %lf %lf", 
+            &h_particles[i].m, 
+            &h_particles[i].x, &h_particles[i].y, &h_particles[i].z, 
+            &h_particles[i].vx, &h_particles[i].vy, &h_particles[i].vz);
             
-            fprintf(stderr, "Error reading body %d data\n", i);
-            // Попытка fallback если массы нет (только 6 чисел)
-            // h_m[i] = 1.0f; // раскомментировать при необходимости
+        if (read_count != 7) {
+            fprintf(stderr, "Error reading particle %d.\n", i);
+            free(h_particles); fclose(fp); return 1;
         }
+
+        // Перекладываем в плоские массивы для отправки на GPU
+        h_m[i] = h_particles[i].m;
+        h_x[i] = h_particles[i].x; h_y[i] = h_particles[i].y; h_z[i] = h_particles[i].z;
+        h_vx[i] = h_particles[i].vx; h_vy[i] = h_particles[i].vy; h_vz[i] = h_particles[i].vz;
     }
     fclose(fp);
+    free(h_particles); // Структуры больше не нужны
 
-    // Выделение памяти на устройстве (GPU)
-    // Используем двойную буферизацию для координат и скоростей, чтобы избежать гонки данных
-    float *d_m, *d_x, *d_y, *d_z, *d_vx, *d_vy, *d_vz;
-    float *d_new_x, *d_new_y, *d_new_z, *d_new_vx, *d_new_vy, *d_new_vz;
+    // 2. Выделение памяти на GPU (Device)
+    double *d_m, *d_x, *d_y, *d_z, *d_vx, *d_vy, *d_vz, *d_fx, *d_fy, *d_fz;
+    size_t bytes = n * sizeof(double);
 
     CUDA_CHECK(cudaMalloc(&d_m, bytes));
     CUDA_CHECK(cudaMalloc(&d_x, bytes));
@@ -148,15 +159,11 @@ int main(int argc, char *argv[]) {
     CUDA_CHECK(cudaMalloc(&d_vx, bytes));
     CUDA_CHECK(cudaMalloc(&d_vy, bytes));
     CUDA_CHECK(cudaMalloc(&d_vz, bytes));
-    
-    CUDA_CHECK(cudaMalloc(&d_new_x, bytes));
-    CUDA_CHECK(cudaMalloc(&d_new_y, bytes));
-    CUDA_CHECK(cudaMalloc(&d_new_z, bytes));
-    CUDA_CHECK(cudaMalloc(&d_new_vx, bytes));
-    CUDA_CHECK(cudaMalloc(&d_new_vy, bytes));
-    CUDA_CHECK(cudaMalloc(&d_new_vz, bytes));
+    CUDA_CHECK(cudaMalloc(&d_fx, bytes));
+    CUDA_CHECK(cudaMalloc(&d_fy, bytes));
+    CUDA_CHECK(cudaMalloc(&d_fz, bytes));
 
-    // Копирование данных на GPU
+    // 3. Копирование данных Host -> Device
     CUDA_CHECK(cudaMemcpy(d_m, h_m, bytes, cudaMemcpyHostToDevice));
     CUDA_CHECK(cudaMemcpy(d_x, h_x, bytes, cudaMemcpyHostToDevice));
     CUDA_CHECK(cudaMemcpy(d_y, h_y, bytes, cudaMemcpyHostToDevice));
@@ -165,62 +172,67 @@ int main(int argc, char *argv[]) {
     CUDA_CHECK(cudaMemcpy(d_vy, h_vy, bytes, cudaMemcpyHostToDevice));
     CUDA_CHECK(cudaMemcpy(d_vz, h_vz, bytes, cudaMemcpyHostToDevice));
 
+    // Настройка сетки запуска (Grid/Block)
     int blocks = (n + BLOCK_SIZE - 1) / BLOCK_SIZE;
-    float current_time = 0.0f;
+
+    // Тайминг через CUDA Events
+    cudaEvent_t start, stop;
+    cudaEventCreate(&start);
+    cudaEventCreate(&stop);
+    cudaEventRecord(start);
+
+    int steps = (int)(tend / DT);
 
     // Вывод начального состояния (t=0)
-    printf("t");
-    for(int k=0; k<n; k++) printf(", x%d, y%d, z%d", k+1, k+1, k+1);
-    printf("\n");
-    
-    printf("%.4f", current_time);
+    printf("0.000000");
     for (int i = 0; i < n; i++) {
-        printf(", %f, %f, %f", h_x[i], h_y[i], h_z[i]);
+        printf(",%f,%f,%f", h_x[i], h_y[i], h_z[i]);
     }
     printf("\n");
 
-    // Основной цикл по времени
-    while (current_time < t_end) {
-        // Запуск ядра
-        nbody_step<<<blocks, BLOCK_SIZE>>>(
-            n, d_m, 
-            d_x, d_y, d_z, d_vx, d_vy, d_vz,
-            d_new_x, d_new_y, d_new_z, d_new_vx, d_new_vy, d_new_vz
-        );
+    // Основной цикл
+    for (int s = 1; s <= steps; s++) {
+        double current_time = s * DT;
+
+        // 1. Расчет сил
+        compute_forces<<<blocks, BLOCK_SIZE>>>(n, d_m, d_x, d_y, d_z, d_fx, d_fy, d_fz);
         CUDA_CHECK(cudaGetLastError());
-        CUDA_CHECK(cudaDeviceSynchronize());
 
-        // Обмен указателей (swap), чтобы "новые" данные стали "старыми" для следующего шага
-        float *tmp;
-        tmp = d_x; d_x = d_new_x; d_new_x = tmp;
-        tmp = d_y; d_y = d_new_y; d_new_y = tmp;
-        tmp = d_z; d_z = d_new_z; d_new_z = tmp;
-        tmp = d_vx; d_vx = d_new_vx; d_new_vx = tmp;
-        tmp = d_vy; d_vy = d_new_vy; d_new_vy = tmp;
-        tmp = d_vz; d_vz = d_new_vz; d_new_vz = tmp;
+        // 2. Интеграция
+        integrate<<<blocks, BLOCK_SIZE>>>(n, d_m, d_x, d_y, d_z, d_vx, d_vy, d_vz, d_fx, d_fy, d_fz);
+        CUDA_CHECK(cudaGetLastError());
 
-        current_time += DT;
-
-        // Копируем обратно на хост для вывода
-        // В реальных задачах вывод делают не каждый шаг, чтобы не тормозить GPU
+        // 3. Копирование координат обратно для вывода (это "узкое место", но нужно для формата CSV)
         CUDA_CHECK(cudaMemcpy(h_x, d_x, bytes, cudaMemcpyDeviceToHost));
         CUDA_CHECK(cudaMemcpy(h_y, d_y, bytes, cudaMemcpyDeviceToHost));
         CUDA_CHECK(cudaMemcpy(h_z, d_z, bytes, cudaMemcpyDeviceToHost));
+        
+        // Синхронизация не обязательна явно перед printf, так как cudaMemcpy блокирующий
 
-        printf("%.4f", current_time);
+        // 4. Вывод
+        printf("%f", current_time);
         for (int i = 0; i < n; i++) {
-            printf(", %f, %f, %f", h_x[i], h_y[i], h_z[i]);
+            printf(",%f,%f,%f", h_x[i], h_y[i], h_z[i]);
         }
         printf("\n");
     }
 
+    cudaEventRecord(stop);
+    cudaEventSynchronize(stop);
+    float milliseconds = 0;
+    cudaEventElapsedTime(&milliseconds, start, stop);
+    
+    // Вывод времени в stderr, чтобы не портить CSV
+    fprintf(stderr, "Time taken: %.4f seconds\n", milliseconds / 1000.0);
+
     // Освобождение памяти
-    free(h_m); free(h_x); free(h_y); free(h_z); free(h_vx); free(h_vy); free(h_vz);
+    free(h_x); free(h_y); free(h_z); free(h_m);
+    free(h_vx); free(h_vy); free(h_vz);
+    
     cudaFree(d_m);
     cudaFree(d_x); cudaFree(d_y); cudaFree(d_z);
     cudaFree(d_vx); cudaFree(d_vy); cudaFree(d_vz);
-    cudaFree(d_new_x); cudaFree(d_new_y); cudaFree(d_new_z);
-    cudaFree(d_new_vx); cudaFree(d_new_vy); cudaFree(d_new_vz);
+    cudaFree(d_fx); cudaFree(d_fy); cudaFree(d_fz);
 
     return 0;
 }
