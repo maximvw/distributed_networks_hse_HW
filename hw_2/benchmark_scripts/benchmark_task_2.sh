@@ -2,8 +2,8 @@
 
 # Настройки
 PROGRAM="./o_files/task_2"
-TEND=5.0
-RUNS=1        # Количество запусков для усреднения
+TEND=1.0
+RUNS=10        # Количество запусков для усреднения
 OUTPUT_FILE="results/benchmarks/benchmark_2.txt"
 
 # Проверка наличия программы
