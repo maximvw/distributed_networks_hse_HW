@@ -28,7 +28,7 @@ if [[ "$OSTYPE" == "darwin"* ]]; then
 else
     # Linux
     MODEL=$(grep -m 1 'model name' /proc/cpuinfo | cut -d: -f2 | xargs)
-    CORES=$(grep -c ^processor /proc/cpuinfo) # Это логические ядра
+    CORES=$(grep -c ^processor /proc/cpuinfo) # Это логические ядра (обычно)
     LOGICAL=$CORES
 fi
 
@@ -39,9 +39,9 @@ echo "T_end теста: $TEND" | tee -a $OUTPUT_FILE
 echo "Количество запусков для усреднения: $RUNS" | tee -a $OUTPUT_FILE
 echo "--------------------------------------" >> $OUTPUT_FILE
 
-# Заголовок таблицы
-printf "%-10s | %-15s | %-10s\n" "Потоки" "Среднее время (с)" "Ускорение" | tee -a $OUTPUT_FILE
-echo "-----------|-----------------|-----------" | tee -a $OUTPUT_FILE
+# Заголовок таблицы (ДОБАВЛЕНА КОЛОНКА "Эффективность")
+printf "%-10s | %-15s | %-10s | %-13s\n" "Потоки" "Среднее время (с)" "Ускорение" "Эффективность" | tee -a $OUTPUT_FILE
+echo "-----------|-----------------|------------|--------------" | tee -a $OUTPUT_FILE
 
 # Переменная для времени выполнения в 1 поток (для расчета ускорения)
 TIME_1_THREAD=0
@@ -52,17 +52,12 @@ for threads in 1 2 4 6 8 10; do
     
     # Запускаем N раз
     for (( i=1; i<=RUNS; i++ )); do
-        # ОТПРАВЛЯЕМ ДАННЫЕ В /dev/null (чтобы не нагружать диск), 
-        # А ВРЕМЯ (stderr) ЗАХВАТЫВАЕМ В ПЕРЕМЕННУЮ ЧЕРЕЗ 2>&1
         output=$($PROGRAM $threads $TEND data/part_2/atom_big.txt 2>&1 >/dev/null)
         
-        # Если вдруг нужно сохранять файл (но это замедлит тест), раскомментируйте строчку ниже, а верхнюю закомментируйте:
-        # output=$($PROGRAM $threads $TEND data/part_2/atom.txt 2>&1 1>./results/task_results/atom.csv)
-
         # Извлекаем время
         run_time=$(echo "$output" | awk '/Time taken:/ {print $3}')
         
-        # Проверка, что run_time не пустой (на случай ошибок)
+        # Проверка
         if [ -z "$run_time" ]; then
              echo "Ошибка: не удалось получить время выполнения. Проверьте вывод программы."
              echo "Вывод программы: $output"
@@ -76,16 +71,24 @@ for threads in 1 2 4 6 8 10; do
     # Считаем среднее
     avg_time=$(awk "BEGIN {print $total_time / $RUNS}")
     
-    # Расчет ускорения (Speedup = T1 / Tn)
+    # Расчет ускорения и эффективности
     if [ "$threads" -eq 1 ]; then
         TIME_1_THREAD=$avg_time
         speedup=1.00
+        efficiency=1.00
     else
-        speedup=$(awk "BEGIN {printf \"%.2f\", $TIME_1_THREAD / $avg_time}")
+        # Считаем точное значение ускорения для расчетов
+        raw_speedup=$(awk "BEGIN {print $TIME_1_THREAD / $avg_time}")
+        
+        # Форматируем ускорение для вывода
+        speedup=$(awk "BEGIN {printf \"%.2f\", $raw_speedup}")
+        
+        # Считаем эффективность: Speedup / Threads
+        efficiency=$(awk "BEGIN {printf \"%.2f\", $raw_speedup / $threads}")
     fi
 
-    # Красивый вывод в консоль и файл
-    printf "%-10d | %-15.4f | %-10s\n" "$threads" "$avg_time" "$speedup" | tee -a $OUTPUT_FILE
+    # Красивый вывод в консоль и файл (ДОБАВЛЕН ВЫВОД $efficiency)
+    printf "%-10d | %-15.4f | %-10s | %-13s\n" "$threads" "$avg_time" "$speedup" "$efficiency" | tee -a $OUTPUT_FILE
 done
 
 echo "" >> $OUTPUT_FILE
