@@ -98,9 +98,15 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    // int nthreads = atoi(argv[1]); // Игнорируем в CUDA версии
+    int threads_per_block = atoi(argv[1]); 
     double tend = atof(argv[2]);
     char *filename = argv[3];
+
+
+    if (threads_per_block <= 0 || threads_per_block > 1024) {
+        fprintf(stderr, "Warning: threads_per_block should be between 1 and 1024 for CUDA. Setting to 256.\n");
+        threads_per_block = 256;
+    }
 
     // 1. Чтение файла
     FILE *fp = fopen(filename, "r");
@@ -173,7 +179,7 @@ int main(int argc, char *argv[]) {
     CUDA_CHECK(cudaMemcpy(d_vz, h_vz, bytes, cudaMemcpyHostToDevice));
 
     // Настройка сетки запуска (Grid/Block)
-    int blocks = (n + BLOCK_SIZE - 1) / BLOCK_SIZE;
+    int blocks = (n + threads_per_block - 1) / threads_per_block;
 
     // Тайминг через CUDA Events
     cudaEvent_t start, stop;
@@ -195,11 +201,11 @@ int main(int argc, char *argv[]) {
         double current_time = s * DT;
 
         // 1. Расчет сил
-        compute_forces<<<blocks, BLOCK_SIZE>>>(n, d_m, d_x, d_y, d_z, d_fx, d_fy, d_fz);
+        compute_forces<<<blocks, threads_per_block>>>(n, d_m, d_x, d_y, d_z, d_fx, d_fy, d_fz);
         CUDA_CHECK(cudaGetLastError());
 
         // 2. Интеграция
-        integrate<<<blocks, BLOCK_SIZE>>>(n, d_m, d_x, d_y, d_z, d_vx, d_vy, d_vz, d_fx, d_fy, d_fz);
+        integrate<<<blocks, threads_per_block>>>(n, d_m, d_x, d_y, d_z, d_vx, d_vy, d_vz, d_fx, d_fy, d_fz);
         CUDA_CHECK(cudaGetLastError());
 
         // 3. Копирование координат обратно для вывода (это "узкое место", но нужно для формата CSV)
