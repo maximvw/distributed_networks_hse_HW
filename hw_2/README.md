@@ -40,3 +40,5 @@
     sputnik: uv run visualizers/task_2.py ./results/task_results/sputnik_cuda.csv
     sun_and_earth: uv run visualizers/task_2.py ./results/task_results/sun_and_earth_cuda.csv
     star_and_2planets: uv run visualizers/task_2.py ./results/task_results/star_and_2planets_cuda.csv
+
+4) benchmarking: ./benchmark_scripts/benchmark_task_2_cuda.sh
